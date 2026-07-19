@@ -5,10 +5,11 @@ import { WINNING_SCORE } from '../logic/game';
 import { colors } from '../theme';
 
 interface Props {
-  onStart: () => void;
+  onPlayOnline: () => void;
+  onPlayLocal: () => void;
 }
 
-export default function HomeScreen({ onStart }: Props) {
+export default function HomeScreen({ onPlayOnline, onPlayLocal }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.ball}>⚽</Text>
@@ -24,7 +25,13 @@ export default function HomeScreen({ onStart }: Props) {
           4. Correct answer wins the round. First to {WINNING_SCORE} points wins!
         </Text>
       </View>
-      <BigButton label="Play — 2 Players" onPress={onStart} />
+      <BigButton label="Play Online" onPress={onPlayOnline} />
+      <BigButton
+        label="Play on One Device"
+        color={colors.card}
+        textColor={colors.text}
+        onPress={onPlayLocal}
+      />
     </View>
   );
 }

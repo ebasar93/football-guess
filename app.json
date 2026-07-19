@@ -23,8 +23,19 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b3d1f"
-      }
+      },
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
+    "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "The microphone is used so you can say your answers out loud.",
+          "speechRecognitionPermission": "Speech recognition turns your spoken answers into text.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ]
+    ],
     "assetBundlePatterns": ["**/*"]
   }
 }

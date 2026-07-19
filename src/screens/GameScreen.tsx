@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import AnswerInput from '../components/AnswerInput';
 import BigButton from '../components/BigButton';
 import ScoreBoard from '../components/ScoreBoard';
 import TeamPicker from '../components/TeamPicker';
+import TeamsBanner from '../components/TeamsBanner';
 import { TEAMS } from '../data/players';
 import {
   buzz,
@@ -31,32 +32,11 @@ interface Props {
   onQuit: () => void;
 }
 
-function TeamsBanner({ teamA, teamB }: { teamA: string; teamB: string }) {
-  return (
-    <View style={styles.banner}>
-      <Text style={styles.bannerTeam} numberOfLines={2}>
-        {teamA}
-      </Text>
-      <Text style={styles.bannerVs}>×</Text>
-      <Text style={styles.bannerTeam} numberOfLines={2}>
-        {teamB}
-      </Text>
-    </View>
-  );
-}
-
 export default function GameScreen({ game, setGame, onQuit }: Props) {
-  const [guess, setGuess] = useState('');
   const chooserColor = game.chooser === 0 ? colors.p1 : colors.p2;
   const otherColor = game.chooser === 0 ? colors.p2 : colors.p1;
   const chooserName = game.playerNames[game.chooser];
   const otherName = game.playerNames[game.chooser === 0 ? 1 : 0];
-
-  const submit = () => {
-    if (!guess.trim()) return;
-    setGame(submitGuess(game, guess));
-    setGuess('');
-  };
 
   return (
     <KeyboardAvoidingView
@@ -92,12 +72,15 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
             Name a player who played for BOTH teams.{'\n'}First to buzz answers!
           </Text>
           <View style={styles.buzzRow}>
-            {( [0, 1] as const ).map((i) => (
+            {([0, 1] as const).map((i) => (
               <Pressable
                 key={i}
                 style={({ pressed }) => [
                   styles.buzzer,
-                  { backgroundColor: i === 0 ? colors.p1 : colors.p2, opacity: pressed ? 0.8 : 1 },
+                  {
+                    backgroundColor: i === 0 ? colors.p1 : colors.p2,
+                    opacity: pressed ? 0.8 : 1,
+                  },
                 ]}
                 onPress={() => setGame(buzz(game, i))}
               >
@@ -125,35 +108,11 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
             {game.phase === 'steal' && (
               <Text style={styles.stealNote}>Wrong answer! Steal chance:</Text>
             )}
-            <Text
-              style={[
-                styles.prompt,
-                { color: game.answering === 0 ? colors.p1 : colors.p2, fontWeight: '800' },
-              ]}
-            >
-              {game.playerNames[game.answering]}, your answer:
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Type the player's name…"
-              placeholderTextColor={colors.textDim}
-              value={guess}
-              onChangeText={setGuess}
-              autoCorrect={false}
-              autoFocus
-              onSubmitEditing={submit}
-              returnKeyType="done"
-            />
-            <BigButton label="Submit Answer" onPress={submit} />
-            <BigButton
-              label="Give up"
-              color={colors.card}
-              textColor={colors.textDim}
-              small
-              onPress={() => {
-                setGuess('');
-                setGame(giveUp(game));
-              }}
+            <AnswerInput
+              prompt={`${game.playerNames[game.answering]}, your answer:`}
+              accent={game.answering === 0 ? colors.p1 : colors.p2}
+              onSubmit={(text) => setGame(submitGuess(game, text))}
+              onGiveUp={() => setGame(giveUp(game))}
             />
           </View>
         )}
@@ -201,23 +160,6 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', gap: 14 },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.pitchLight,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
-  bannerTeam: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  bannerVs: { color: colors.gold, fontSize: 24, fontWeight: '900' },
   prompt: {
     color: colors.text,
     fontSize: 16,
@@ -239,14 +181,6 @@ const styles = StyleSheet.create({
   },
   buzzerText: { color: '#1b1b1b', fontSize: 17, fontWeight: '800' },
   buzzerSub: { color: '#1b1b1b', fontSize: 13, fontWeight: '700', opacity: 0.7 },
-  input: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: colors.text,
-    fontSize: 17,
-  },
   resultEmoji: { fontSize: 48, textAlign: 'center' },
   resultTitle: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
   resultText: {
