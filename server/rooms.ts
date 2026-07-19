@@ -11,11 +11,27 @@ import {
   teamsWithCommonPlayer,
 } from '../src/logic/game';
 import { TEAMS } from '../src/data/players';
-import { ClientMessage, RoomSnapshot, ServerMessage } from '../src/online/protocol';
+import {
+  ClientMessage,
+  DEFAULT_RATING,
+  RoomSnapshot,
+  ServerMessage,
+} from '../src/online/protocol';
 
 /** Minimal socket interface so rooms can be tested without real sockets. */
 export interface PlayerSocket {
   send(data: string): void;
+}
+
+// Skill-based matchmaking: two searchers pair when their rating gap is
+// within a tolerance that widens the longer the older one has waited, so
+// close matches are preferred but nobody waits forever. Tunable via env
+// for tests.
+const BASE_TOLERANCE = Number(process.env.QM_BASE_TOLERANCE) || 200;
+const WIDEN_PER_SEC = Number(process.env.QM_WIDEN_PER_SEC) || 100;
+
+export function pairTolerance(waitedMs: number): number {
+  return BASE_TOLERANCE + (waitedMs / 1000) * WIDEN_PER_SEC;
 }
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O to avoid confusion
@@ -37,8 +53,10 @@ function other(i: 0 | 1): 0 | 1 {
 export class Room {
   code: string;
   names: [string, string] = ['', ''];
+  ratings: [number, number] = [DEFAULT_RATING, DEFAULT_RATING];
   sockets: [PlayerSocket | null, PlayerSocket | null] = [null, null];
   game: GameState | null = null;
+  gameNo = 1;
   passed: [boolean, boolean] = [false, false];
   rematchVotes: [boolean, boolean] = [false, false];
 
@@ -49,7 +67,9 @@ export class Room {
   snapshot(): RoomSnapshot {
     return {
       code: this.code,
+      matchId: `${this.code}#${this.gameNo}`,
       names: this.names,
+      ratings: this.ratings,
       state: this.game,
       passed: this.passed,
       rematchVotes: this.rematchVotes,
@@ -131,6 +151,7 @@ export class Room {
         this.rematchVotes[i] = true;
         if (this.rematchVotes[0] && this.rematchVotes[1]) {
           this.game = newGame(this.names);
+          this.gameNo += 1;
           this.rematchVotes = [false, false];
           this.passed = [false, false];
         }
@@ -143,54 +164,118 @@ export class Room {
   }
 }
 
+interface QueueEntry {
+  socket: PlayerSocket;
+  name: string;
+  rating: number;
+  since: number;
+}
+
 export class RoomManager {
   rooms = new Map<string, Room>();
   /** Players waiting for a public quick match, oldest first. */
-  queue: { socket: PlayerSocket; name: string }[] = [];
+  queue: QueueEntry[] = [];
+  /** Total connected clients; wired up by the server entry point. */
+  onlineCount: () => number = () => this.queue.length;
 
-  create(socket: PlayerSocket, name: string): Room {
+  create(socket: PlayerSocket, name: string, rating: number): Room {
     const room = new Room(makeCode((c) => this.rooms.has(c)));
     room.sockets[0] = socket;
     room.names[0] = name;
+    room.ratings[0] = rating;
     this.rooms.set(room.code, room);
     room.sendTo(0, { type: 'joined', youAre: 0, snapshot: room.snapshot() });
     return room;
   }
 
-  join(socket: PlayerSocket, code: string, name: string): Room | null {
+  join(socket: PlayerSocket, code: string, name: string, rating: number): Room | null {
     const room = this.rooms.get(code.trim().toUpperCase());
     if (!room || room.sockets[1]) return null;
     room.sockets[1] = socket;
     room.names[1] = name;
+    room.ratings[1] = rating;
     room.game = newGame(room.names);
     room.sendTo(1, { type: 'joined', youAre: 1, snapshot: room.snapshot() });
     room.broadcast();
     return room;
   }
 
-  /**
-   * Public matchmaking: pair with the oldest waiting player, or wait in
-   * the queue. Returns the room when a match was made (the caller is
-   * player 1, the waiting player is player 0), null while waiting.
-   */
-  quickMatch(socket: PlayerSocket, name: string): Room | null {
-    this.cancelQuickMatch(socket); // no duplicate queue entries
-    const waiting = this.queue.shift();
-    if (!waiting) {
-      this.queue.push({ socket, name });
-      socket.send(JSON.stringify({ type: 'searching' } satisfies ServerMessage));
-      return null;
-    }
+  private pairUp(a: QueueEntry, b: QueueEntry): Room {
     const room = new Room(makeCode((c) => this.rooms.has(c)));
-    room.sockets[0] = waiting.socket;
-    room.names[0] = waiting.name;
-    room.sockets[1] = socket;
-    room.names[1] = name;
+    room.sockets[0] = a.socket;
+    room.names[0] = a.name;
+    room.ratings[0] = a.rating;
+    room.sockets[1] = b.socket;
+    room.names[1] = b.name;
+    room.ratings[1] = b.rating;
     room.game = newGame(room.names);
     this.rooms.set(room.code, room);
     room.sendTo(0, { type: 'joined', youAre: 0, snapshot: room.snapshot() });
     room.sendTo(1, { type: 'joined', youAre: 1, snapshot: room.snapshot() });
     return room;
+  }
+
+  private sendSearching(entry: QueueEntry) {
+    entry.socket.send(
+      JSON.stringify({
+        type: 'searching',
+        online: this.onlineCount(),
+      } satisfies ServerMessage),
+    );
+  }
+
+  /**
+   * Public matchmaking: pair with the closest-rated waiting player whose
+   * rating gap fits the (wait-widened) tolerance, otherwise wait in the
+   * queue. Returns the room when a match was made (the caller is player
+   * 1, the waiting player is player 0), null while waiting.
+   */
+  quickMatch(socket: PlayerSocket, name: string, rating: number): Room | null {
+    this.cancelQuickMatch(socket); // no duplicate queue entries
+    const now = Date.now();
+    let best: QueueEntry | null = null;
+    for (const e of this.queue) {
+      const gap = Math.abs(e.rating - rating);
+      if (gap > pairTolerance(now - e.since)) continue;
+      if (!best || gap < Math.abs(best.rating - rating)) best = e;
+    }
+    if (best) {
+      this.queue = this.queue.filter((e) => e !== best);
+      return this.pairUp(best, { socket, name, rating, since: now });
+    }
+    const entry: QueueEntry = { socket, name, rating, since: now };
+    this.queue.push(entry);
+    this.sendSearching(entry);
+    return null;
+  }
+
+  /**
+   * Periodic pass: pair queued players whose tolerances have widened
+   * enough, and refresh the online count for everyone still waiting.
+   * Returns the rooms created so the server can wire up its sessions.
+   */
+  sweepQueue(): Room[] {
+    const created: Room[] = [];
+    const now = Date.now();
+    let matched = true;
+    while (matched && this.queue.length >= 2) {
+      matched = false;
+      outer: for (let i = 0; i < this.queue.length; i++) {
+        for (let j = i + 1; j < this.queue.length; j++) {
+          const a = this.queue[i];
+          const b = this.queue[j];
+          const waited = Math.max(now - a.since, now - b.since);
+          if (Math.abs(a.rating - b.rating) <= pairTolerance(waited)) {
+            this.queue = this.queue.filter((e) => e !== a && e !== b);
+            created.push(this.pairUp(a, b));
+            matched = true;
+            break outer;
+          }
+        }
+      }
+    }
+    for (const e of this.queue) this.sendSearching(e);
+    return created;
   }
 
   cancelQuickMatch(socket: PlayerSocket) {

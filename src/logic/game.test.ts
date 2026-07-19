@@ -14,6 +14,7 @@ import {
   WINNING_SCORE,
 } from './game';
 import { PLAYERS, TEAMS } from '../data/players';
+import { eloUpdate } from '../online/protocol';
 
 let failures = 0;
 function assert(cond: boolean, msg: string) {
@@ -104,6 +105,13 @@ g = buzz(g, 1);
 g = submitGuess(g, 'Roberto Carlos');
 assert(g.scores[1] === WINNING_SCORE, 'third point reached');
 assert(g.phase === 'gameOver' && g.winner === 1, 'first to 3 wins the game');
+
+// ── Elo rating math ──────────────────────────────────────────────
+assert(eloUpdate(1000, 1000, true) === 1016, 'even-match win gains 16');
+assert(eloUpdate(1000, 1000, false) === 984, 'even-match loss drops 16');
+assert(eloUpdate(1000, 1400, true) > 1016, 'beating a stronger player gains more');
+assert(eloUpdate(1000, 600, false) < 984, 'losing to a weaker player costs more');
+assert(eloUpdate(100, 2000, false) === 100, 'rating never falls below the floor');
 
 if (failures === 0) {
   console.log('All tests passed.');

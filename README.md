@@ -29,11 +29,17 @@ in the device language).
 
 ## Online multiplayer
 
-- **Quick Match**: tap **Play Online → Quick Match** to be paired with the
-  next player searching for a public game, whoever they are.
+- **Quick Match**: tap **Play Online → Quick Match** to be paired with
+  another searching player near your skill level. Every player has an
+  Elo-style rating (starts at 1000, stored on the device) that goes up
+  and down with online wins and losses; matchmaking prefers close
+  ratings and widens its tolerance the longer you wait, so you always
+  get a game. The searching screen shows how many players are online.
 - **Play with a friend**: one player taps **Create a Room** and gets a
   4-letter room code; the other joins with the code. The match starts
   automatically.
+- Display names are screened by a profanity filter (English + Turkish)
+  on the server; filtered names show as "Player".
 - The server is authoritative: it arbitrates who buzzed first, validates
   answers, and keeps both phones in sync. Skipping a round and rematches
   need both players to agree.

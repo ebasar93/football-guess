@@ -2,9 +2,11 @@
 //   cd server && npm install && npm start   (listens on PORT, default 8080)
 import { WebSocket, WebSocketServer } from 'ws';
 import { ClientMessage } from '../src/online/protocol';
+import { sanitizeName, sanitizeRating } from './names';
 import { Room, RoomManager } from './rooms';
 
 const PORT = Number(process.env.PORT) || 8080;
+const SWEEP_MS = Number(process.env.QM_SWEEP_MS) || 3000;
 const manager = new RoomManager();
 
 interface Session {
@@ -37,13 +39,13 @@ wss.on('connection', (ws: LiveSocket) => {
 
     if (msg.type === 'create') {
       if (session.room) return;
-      session.room = manager.create(ws, sanitizeName(msg.name));
+      session.room = manager.create(ws, sanitizeName(msg.name), sanitizeRating(msg.rating));
       session.idx = 0;
       return;
     }
     if (msg.type === 'join') {
       if (session.room) return;
-      const room = manager.join(ws, msg.code, sanitizeName(msg.name));
+      const room = manager.join(ws, msg.code, sanitizeName(msg.name), sanitizeRating(msg.rating));
       if (!room) {
         ws.send(JSON.stringify({ type: 'error', message: 'Room not found or already full.' }));
         return;
@@ -54,17 +56,8 @@ wss.on('connection', (ws: LiveSocket) => {
     }
     if (msg.type === 'quickMatch') {
       if (session.room) return;
-      const room = manager.quickMatch(ws, sanitizeName(msg.name));
-      if (room) {
-        // The queued opponent's session lives on another connection.
-        const waiterSession = sessions.get(room.sockets[0] as WebSocket);
-        if (waiterSession) {
-          waiterSession.room = room;
-          waiterSession.idx = 0;
-        }
-        session.room = room;
-        session.idx = 1;
-      }
+      const room = manager.quickMatch(ws, sanitizeName(msg.name), sanitizeRating(msg.rating));
+      if (room) bindRoomSessions(room);
       return;
     }
     if (msg.type === 'cancelQuickMatch') {
@@ -82,10 +75,24 @@ wss.on('connection', (ws: LiveSocket) => {
   });
 });
 
-function sanitizeName(name: unknown): string {
-  const n = String(name ?? '').trim().slice(0, 20);
-  return n || 'Player';
+/** Point both matched sockets' sessions at their new room. */
+function bindRoomSessions(room: Room) {
+  ([0, 1] as const).forEach((idx) => {
+    const s = sessions.get(room.sockets[idx] as WebSocket);
+    if (s) {
+      s.room = room;
+      s.idx = idx;
+    }
+  });
 }
+
+manager.onlineCount = () => wss.clients.size;
+
+// Pair queued players whose tolerances have widened, refresh online counts.
+const sweeper = setInterval(() => {
+  for (const room of manager.sweepQueue()) bindRoomSessions(room);
+}, SWEEP_MS);
+wss.on('close', () => clearInterval(sweeper));
 
 // Drop dead connections so abandoned rooms get cleaned up.
 const heartbeat = setInterval(() => {

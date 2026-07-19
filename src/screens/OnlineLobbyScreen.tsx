@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import BigButton from '../components/BigButton';
 import { OnlineGame } from '../online/useOnlineGame';
 import { DEFAULT_SERVER_URL } from '../config';
@@ -7,10 +7,11 @@ import { colors } from '../theme';
 
 interface Props {
   online: OnlineGame;
+  rating: number;
   onBack: () => void;
 }
 
-export default function OnlineLobbyScreen({ online, onBack }: Props) {
+export default function OnlineLobbyScreen({ online, rating, onBack }: Props) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
@@ -24,13 +25,18 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Play Online</Text>
+      <Text style={styles.ratingChip}>⭐ Your rating: {rating}</Text>
 
       {online.status === 'searching' ? (
         <View style={styles.waitBox}>
-          <Text style={styles.searchIcon}>🔎</Text>
+          <ActivityIndicator size="large" color={colors.gold} />
           <Text style={styles.waitText}>
-            Looking for an opponent…{'\n'}You'll be matched with the next player who
-            searches.
+            Looking for an opponent near your skill level…
+            {online.onlineCount !== null &&
+              `\n${online.onlineCount} player${online.onlineCount === 1 ? '' : 's'} online`}
+          </Text>
+          <Text style={styles.waitHint}>
+            The search widens the longer you wait, so you'll always get a game.
           </Text>
           <BigButton
             label="Cancel search"
@@ -44,6 +50,7 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
         <View style={styles.waitBox}>
           <Text style={styles.waitLabel}>Room code</Text>
           <Text style={styles.code}>{online.snapshot.code}</Text>
+          <ActivityIndicator color={colors.gold} />
           <Text style={styles.waitText}>
             Share this code with your friend.{'\n'}Waiting for them to join…
           </Text>
@@ -62,9 +69,9 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
 
           <BigButton
             label={
-              online.status === 'connecting' ? 'Connecting…' : 'Quick Match — random opponent'
+              online.status === 'connecting' ? 'Connecting…' : 'Quick Match — find an opponent'
             }
-            onPress={() => !busy && online.quickMatch(serverUrl, playerName)}
+            onPress={() => !busy && online.quickMatch(serverUrl, playerName, rating)}
           />
 
           <View style={styles.divider}>
@@ -75,7 +82,7 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
             label="Create a Room"
             color={colors.card}
             textColor={colors.text}
-            onPress={() => !busy && online.createRoom(serverUrl, playerName)}
+            onPress={() => !busy && online.createRoom(serverUrl, playerName, rating)}
           />
 
           <View style={styles.joinRow}>
@@ -95,7 +102,7 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
                 color={colors.card}
                 textColor={colors.text}
                 onPress={() =>
-                  !busy && code.trim() && online.joinRoom(serverUrl, code, playerName)
+                  !busy && code.trim() && online.joinRoom(serverUrl, code, playerName, rating)
                 }
               />
             </View>
@@ -139,6 +146,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  ratingChip: {
+    color: colors.textDim,
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
     marginBottom: 8,
   },
   label: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
@@ -160,7 +173,7 @@ const styles = StyleSheet.create({
   joinRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
   joinButton: { flex: 1, justifyContent: 'center' },
   divider: { alignItems: 'center', marginVertical: 4 },
-  searchIcon: { fontSize: 40 },
+  waitHint: { color: colors.textDim, fontSize: 12, textAlign: 'center' },
   dividerText: { color: colors.textDim, fontSize: 13 },
   waitBox: {
     backgroundColor: colors.pitchLight,

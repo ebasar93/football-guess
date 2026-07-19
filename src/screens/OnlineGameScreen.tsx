@@ -1,40 +1,74 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  Vibration,
   View,
 } from 'react-native';
 import AnswerInput from '../components/AnswerInput';
 import BigButton from '../components/BigButton';
+import FadeIn from '../components/FadeIn';
+import PulseView from '../components/PulseView';
 import ScoreBoard from '../components/ScoreBoard';
 import TeamPicker from '../components/TeamPicker';
 import TeamsBanner from '../components/TeamsBanner';
 import { TEAMS } from '../data/players';
 import { teamsWithCommonPlayer } from '../logic/game';
 import { OnlineGame } from '../online/useOnlineGame';
+import { Rating } from '../rating/useRating';
 import { colors } from '../theme';
 
 interface Props {
   online: OnlineGame;
+  rating: Rating;
   onLeave: () => void;
 }
 
 function Waiting({ text }: { text: string }) {
   return (
     <View style={styles.waiting}>
+      <ActivityIndicator color={colors.gold} />
       <Text style={styles.waitingText}>{text}</Text>
     </View>
   );
 }
 
-export default function OnlineGameScreen({ online, onLeave }: Props) {
+export default function OnlineGameScreen({ online, rating, onLeave }: Props) {
   const snap = online.snapshot;
   const me = online.youAre;
-  if (!snap || !snap.state || me === null) return null;
-  const g = snap.state;
+  const g = snap?.state ?? null;
+  const phase = g?.phase;
+  const winner = g?.winner ?? null;
+  const matchId = snap?.matchId;
+
+  // A short buzz of the phone when the buzzer race opens or the match ends.
+  useEffect(() => {
+    if (phase === 'buzzer') Vibration.vibrate(80);
+    if (phase === 'gameOver') Vibration.vibrate([0, 60, 80, 60]);
+  }, [phase]);
+
+  // Apply the Elo update exactly once per finished online match.
+  const [ratingDelta, setRatingDelta] = useState<number | null>(null);
+  const ratedMatch = useRef<string | null>(null);
+
+  // Clear the shown rating change when a rematch starts.
+  useEffect(() => {
+    if (phase !== 'gameOver') setRatingDelta(null);
+  }, [phase]);
+  useEffect(() => {
+    if (phase !== 'gameOver' || winner === null || me === null || !snap || !matchId) return;
+    if (ratedMatch.current === matchId) return;
+    ratedMatch.current = matchId;
+    const before = rating.rating;
+    const after = rating.recordMatch(matchId, snap.ratings[me === 0 ? 1 : 0], winner === me);
+    setRatingDelta(after === null ? null : after - before);
+  }, [phase, winner, me, snap, matchId, rating]);
+
+  if (!snap || !g || me === null) return null;
   const opp = me === 0 ? 1 : 0;
   const myColor = me === 0 ? colors.p1 : colors.p2;
   const oppName = snap.names[opp];
@@ -94,15 +128,20 @@ export default function OnlineGameScreen({ online, onLeave }: Props) {
           <Text style={styles.prompt}>
             Name a player who played for BOTH teams.{'\n'}Fastest buzz answers!
           </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.buzzer,
-              { backgroundColor: myColor, opacity: pressed ? 0.8 : 1 },
-            ]}
-            onPress={() => online.send({ type: 'buzz' })}
-          >
-            <Text style={styles.buzzerText}>BUZZ!</Text>
-          </Pressable>
+          <PulseView>
+            <Pressable
+              style={({ pressed }) => [
+                styles.buzzer,
+                { backgroundColor: myColor, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={() => {
+                Vibration.vibrate(30);
+                online.send({ type: 'buzz' });
+              }}
+            >
+              <Text style={styles.buzzerText}>BUZZ!</Text>
+            </Pressable>
+          </PulseView>
           {snap.passed[me] ? (
             <Text style={styles.passNote}>
               You voted to skip. Waiting for {oppName}…
@@ -142,7 +181,7 @@ export default function OnlineGameScreen({ online, onLeave }: Props) {
       )}
 
       {g.phase === 'roundResult' && g.lastResult && (
-        <View style={styles.center}>
+        <FadeIn style={styles.center}>
           {g.lastResult.scorer !== null ? (
             <>
               <Text style={styles.resultEmoji}>
@@ -173,11 +212,11 @@ export default function OnlineGameScreen({ online, onLeave }: Props) {
             </>
           )}
           <BigButton label="Next Round" onPress={() => online.send({ type: 'nextRound' })} />
-        </View>
+        </FadeIn>
       )}
 
       {g.phase === 'gameOver' && g.winner !== null && (
-        <View style={styles.center}>
+        <FadeIn style={styles.center}>
           <Text style={styles.resultEmoji}>{g.winner === me ? '🏆' : '💔'}</Text>
           <Text
             style={[styles.resultTitle, { color: g.winner === 0 ? colors.p1 : colors.p2 }]}
@@ -187,6 +226,12 @@ export default function OnlineGameScreen({ online, onLeave }: Props) {
           <Text style={styles.finalScore}>
             {g.scores[0]} – {g.scores[1]}
           </Text>
+          {ratingDelta !== null && (
+            <Text style={[styles.ratingDelta, { color: ratingDelta >= 0 ? colors.ok : colors.danger }]}>
+              Rating {ratingDelta >= 0 ? '+' : ''}
+              {ratingDelta} → {rating.rating}
+            </Text>
+          )}
           {snap.rematchVotes[me] ? (
             <Text style={styles.passNote}>Rematch requested. Waiting for {oppName}…</Text>
           ) : (
@@ -195,7 +240,7 @@ export default function OnlineGameScreen({ online, onLeave }: Props) {
           {snap.rematchVotes[opp] && !snap.rematchVotes[me] && (
             <Text style={styles.passNote}>{oppName} wants a rematch!</Text>
           )}
-        </View>
+        </FadeIn>
       )}
 
       <Pressable onPress={leave} style={styles.quit}>
@@ -208,7 +253,7 @@ export default function OnlineGameScreen({ online, onLeave }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', gap: 14 },
-  waiting: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  waiting: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
   waitingText: {
     color: colors.textDim,
     fontSize: 16,
@@ -224,6 +269,7 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
   resultText: { color: colors.text, fontSize: 15, textAlign: 'center', lineHeight: 22 },
   finalScore: { color: colors.gold, fontSize: 26, fontWeight: '800', textAlign: 'center' },
+  ratingDelta: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
   leftEmoji: { fontSize: 48, textAlign: 'center' },
   leftTitle: { color: colors.text, fontSize: 20, fontWeight: '700', textAlign: 'center' },
   quit: { alignItems: 'center', paddingVertical: 10 },

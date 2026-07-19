@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  Vibration,
   View,
 } from 'react-native';
 import AnswerInput from '../components/AnswerInput';
 import BigButton from '../components/BigButton';
+import FadeIn from '../components/FadeIn';
+import PulseView from '../components/PulseView';
 import ScoreBoard from '../components/ScoreBoard';
 import TeamPicker from '../components/TeamPicker';
 import TeamsBanner from '../components/TeamsBanner';
@@ -33,6 +36,10 @@ interface Props {
 }
 
 export default function GameScreen({ game, setGame, onQuit }: Props) {
+  useEffect(() => {
+    if (game.phase === 'buzzer') Vibration.vibrate(80);
+  }, [game.phase]);
+
   const chooserColor = game.chooser === 0 ? colors.p1 : colors.p2;
   const otherColor = game.chooser === 0 ? colors.p2 : colors.p1;
   const chooserName = game.playerNames[game.chooser];
@@ -73,20 +80,24 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
           </Text>
           <View style={styles.buzzRow}>
             {([0, 1] as const).map((i) => (
-              <Pressable
-                key={i}
-                style={({ pressed }) => [
-                  styles.buzzer,
-                  {
-                    backgroundColor: i === 0 ? colors.p1 : colors.p2,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-                onPress={() => setGame(buzz(game, i))}
-              >
-                <Text style={styles.buzzerText}>{game.playerNames[i]}</Text>
-                <Text style={styles.buzzerSub}>BUZZ!</Text>
-              </Pressable>
+              <PulseView key={i} style={styles.buzzWrap}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.buzzer,
+                    {
+                      backgroundColor: i === 0 ? colors.p1 : colors.p2,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    Vibration.vibrate(30);
+                    setGame(buzz(game, i));
+                  }}
+                >
+                  <Text style={styles.buzzerText}>{game.playerNames[i]}</Text>
+                  <Text style={styles.buzzerSub}>BUZZ!</Text>
+                </Pressable>
+              </PulseView>
             ))}
           </View>
           <BigButton
@@ -118,7 +129,7 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
         )}
 
       {game.phase === 'roundResult' && game.lastResult && (
-        <View style={styles.center}>
+        <FadeIn style={styles.center}>
           {game.lastResult.scorer !== null ? (
             <>
               <Text style={styles.resultEmoji}>🎉</Text>
@@ -147,7 +158,7 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
             </>
           )}
           <BigButton label="Next Round" onPress={() => setGame(nextRound(game))} />
-        </View>
+        </FadeIn>
       )}
 
       <Pressable onPress={onQuit} style={styles.quit}>
@@ -173,8 +184,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buzzRow: { flexDirection: 'row', gap: 12 },
+  buzzWrap: { flex: 1 },
   buzzer: {
-    flex: 1,
     borderRadius: 16,
     paddingVertical: 26,
     alignItems: 'center',

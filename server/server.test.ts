@@ -82,7 +82,13 @@ class Client {
 async function main() {
   const server = spawn('npx', ['tsx', 'index.ts'], {
     cwd: __dirname,
-    env: { ...process.env, PORT: String(PORT) },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      // Fast matchmaking widening so the skill-gap test completes quickly.
+      QM_WIDEN_PER_SEC: '2000',
+      QM_SWEEP_MS: '300',
+    },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise<void>((res, rej) => {
@@ -283,6 +289,69 @@ async function main() {
     const frankLeft = await frank.next();
     assert(frankLeft.type === 'opponentLeft', 'quick-match rooms tear down on disconnect');
     frank.ws.close();
+
+    // ── Name filtering & ratings ────────────────────────────────
+    const potty = new Client();
+    await potty.open();
+    potty.send({ type: 'create', name: 'fuckface', rating: 1234 });
+    const pottyJoin = await potty.next();
+    assert(
+      pottyJoin.type === 'joined' && pottyJoin.snapshot.names[0] === 'Player',
+      'profane names are replaced',
+    );
+    assert(
+      pottyJoin.type === 'joined' && pottyJoin.snapshot.ratings[0] === 1234,
+      'rating is stored in the snapshot',
+    );
+    potty.ws.close();
+
+    const ayse = new Client();
+    await ayse.open();
+    ayse.send({ type: 'create', name: 'Ayşe', rating: 99999 });
+    const ayseJoin = await ayse.next();
+    assert(
+      ayseJoin.type === 'joined' && ayseJoin.snapshot.names[0] === 'Ayşe',
+      'clean names pass the filter unchanged',
+    );
+    assert(
+      ayseJoin.type === 'joined' && ayseJoin.snapshot.ratings[0] === 4000,
+      'absurd ratings are clamped',
+    );
+    ayse.ws.close();
+
+    // ── Skill-based pairing ─────────────────────────────────────
+    // A 1000-point gap exceeds the base tolerance, so the pair must wait
+    // for the tolerance to widen (fast in this test via QM_WIDEN_PER_SEC).
+    const rookie = new Client();
+    const pro = new Client();
+    await rookie.open();
+    rookie.send({ type: 'quickMatch', name: 'Rookie', rating: 1000 });
+    const rookieSearch = await rookie.next();
+    assert(rookieSearch.type === 'searching', 'rookie queues');
+    assert(
+      rookieSearch.type === 'searching' && rookieSearch.online >= 1,
+      'searching reports the online player count',
+    );
+    await pro.open();
+    pro.send({ type: 'quickMatch', name: 'Pro', rating: 2000 });
+    const proFirst = await pro.next();
+    assert(
+      proFirst.type === 'searching',
+      'a large rating gap is not paired immediately',
+    );
+    // The sweep widens the tolerance and pairs them shortly after.
+    const rookieMatched = await rookie.until((s) => s.state !== null);
+    assert(
+      rookieMatched.names.includes('Pro'),
+      'widening tolerance eventually pairs across the gap',
+    );
+    assert(
+      rookieMatched.ratings[0] === 1000 && rookieMatched.ratings[1] === 2000,
+      'both ratings appear in the matched snapshot',
+    );
+    await pro.until((s) => s.state !== null);
+    rookie.ws.close();
+    pro.ws.close();
   } finally {
     server.kill();
   }

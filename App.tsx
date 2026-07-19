@@ -9,6 +9,7 @@ import SetupScreen from './src/screens/SetupScreen';
 import WinnerScreen from './src/screens/WinnerScreen';
 import { GameState, newGame } from './src/logic/game';
 import { useOnlineGame } from './src/online/useOnlineGame';
+import { useRating } from './src/rating/useRating';
 import { colors } from './src/theme';
 
 type Screen = 'home' | 'setup' | 'game' | 'onlineLobby';
@@ -17,6 +18,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [game, setGame] = useState<GameState | null>(null);
   const online = useOnlineGame();
+  const rating = useRating();
 
   const startMatch = (names: [string, string]) => {
     setGame(newGame(names));
@@ -56,9 +58,11 @@ export default function App() {
           />
         )}
         {screen === 'onlineLobby' && !inOnlineMatch && (
-          <OnlineLobbyScreen online={online} onBack={goHome} />
+          <OnlineLobbyScreen online={online} rating={rating.rating} onBack={goHome} />
         )}
-        {inOnlineMatch && <OnlineGameScreen online={online} onLeave={goHome} />}
+        {inOnlineMatch && (
+          <OnlineGameScreen online={online} rating={rating} onLeave={goHome} />
+        )}
       </View>
     </SafeAreaView>
   );

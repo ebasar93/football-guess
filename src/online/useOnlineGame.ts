@@ -14,10 +14,12 @@ export interface OnlineGame {
   status: ConnectionStatus;
   youAre: 0 | 1 | null;
   snapshot: RoomSnapshot | null;
+  /** Players connected to the server, reported while searching. */
+  onlineCount: number | null;
   error: string | null;
-  createRoom: (serverUrl: string, name: string) => void;
-  joinRoom: (serverUrl: string, code: string, name: string) => void;
-  quickMatch: (serverUrl: string, name: string) => void;
+  createRoom: (serverUrl: string, name: string, rating: number) => void;
+  joinRoom: (serverUrl: string, code: string, name: string, rating: number) => void;
+  quickMatch: (serverUrl: string, name: string, rating: number) => void;
   send: (msg: ClientMessage) => void;
   leave: () => void;
 }
@@ -26,6 +28,7 @@ export function useOnlineGame(): OnlineGame {
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [youAre, setYouAre] = useState<0 | 1 | null>(null);
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -73,6 +76,7 @@ export function useOnlineGame(): OnlineGame {
         }
         if (msg.type === 'searching') {
           setStatus('searching');
+          setOnlineCount(msg.online);
         } else if (msg.type === 'joined') {
           setYouAre(msg.youAre);
           setSnapshot(msg.snapshot);
@@ -105,19 +109,20 @@ export function useOnlineGame(): OnlineGame {
   );
 
   const createRoom = useCallback(
-    (serverUrl: string, name: string) => connect(serverUrl, { type: 'create', name }),
+    (serverUrl: string, name: string, rating: number) =>
+      connect(serverUrl, { type: 'create', name, rating }),
     [connect],
   );
 
   const joinRoom = useCallback(
-    (serverUrl: string, code: string, name: string) =>
-      connect(serverUrl, { type: 'join', code: code.trim().toUpperCase(), name }),
+    (serverUrl: string, code: string, name: string, rating: number) =>
+      connect(serverUrl, { type: 'join', code: code.trim().toUpperCase(), name, rating }),
     [connect],
   );
 
   const quickMatch = useCallback(
-    (serverUrl: string, name: string) =>
-      connect(serverUrl, { type: 'quickMatch', name }),
+    (serverUrl: string, name: string, rating: number) =>
+      connect(serverUrl, { type: 'quickMatch', name, rating }),
     [connect],
   );
 
@@ -133,5 +138,16 @@ export function useOnlineGame(): OnlineGame {
     setError(null);
   }, [teardown]);
 
-  return { status, youAre, snapshot, error, createRoom, joinRoom, quickMatch, send, leave };
+  return {
+    status,
+    youAre,
+    snapshot,
+    onlineCount,
+    error,
+    createRoom,
+    joinRoom,
+    quickMatch,
+    send,
+    leave,
+  };
 }

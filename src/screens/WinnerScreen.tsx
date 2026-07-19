@@ -1,6 +1,8 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, Vibration, View } from 'react-native';
 import BigButton from '../components/BigButton';
+import FadeIn from '../components/FadeIn';
+import PulseView from '../components/PulseView';
 import { GameState } from '../logic/game';
 import { colors } from '../theme';
 
@@ -12,9 +14,14 @@ interface Props {
 
 export default function WinnerScreen({ game, onRematch, onHome }: Props) {
   const winner = game.winner ?? 0;
+  useEffect(() => {
+    Vibration.vibrate([0, 60, 80, 60]);
+  }, []);
   return (
-    <View style={styles.container}>
-      <Text style={styles.trophy}>🏆</Text>
+    <FadeIn style={styles.container}>
+      <PulseView>
+        <Text style={styles.trophy}>🏆</Text>
+      </PulseView>
       <Text style={[styles.name, { color: winner === 0 ? colors.p1 : colors.p2 }]}>
         {game.playerNames[winner]}
       </Text>
@@ -31,7 +38,7 @@ export default function WinnerScreen({ game, onRematch, onHome }: Props) {
           onPress={onHome}
         />
       </View>
-    </View>
+    </FadeIn>
   );
 }
 
