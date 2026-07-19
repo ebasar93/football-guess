@@ -5,6 +5,7 @@ export type ConnectionStatus =
   | 'idle'
   | 'connecting'
   | 'waiting' // room created, waiting for the opponent
+  | 'searching' // in the public quick-match queue
   | 'playing'
   | 'opponentLeft'
   | 'error';
@@ -16,6 +17,7 @@ export interface OnlineGame {
   error: string | null;
   createRoom: (serverUrl: string, name: string) => void;
   joinRoom: (serverUrl: string, code: string, name: string) => void;
+  quickMatch: (serverUrl: string, name: string) => void;
   send: (msg: ClientMessage) => void;
   leave: () => void;
 }
@@ -69,7 +71,9 @@ export function useOnlineGame(): OnlineGame {
         } catch {
           return;
         }
-        if (msg.type === 'joined') {
+        if (msg.type === 'searching') {
+          setStatus('searching');
+        } else if (msg.type === 'joined') {
           setYouAre(msg.youAre);
           setSnapshot(msg.snapshot);
           setStatus(msg.snapshot.state ? 'playing' : 'waiting');
@@ -91,7 +95,9 @@ export function useOnlineGame(): OnlineGame {
       };
       ws.onclose = () => {
         setStatus((s) =>
-          s === 'playing' || s === 'waiting' ? 'opponentLeft' : s,
+          s === 'playing' || s === 'waiting' || s === 'searching'
+            ? 'opponentLeft'
+            : s,
         );
       };
     },
@@ -109,6 +115,12 @@ export function useOnlineGame(): OnlineGame {
     [connect],
   );
 
+  const quickMatch = useCallback(
+    (serverUrl: string, name: string) =>
+      connect(serverUrl, { type: 'quickMatch', name }),
+    [connect],
+  );
+
   const send = useCallback((msg: ClientMessage) => {
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
@@ -121,5 +133,5 @@ export function useOnlineGame(): OnlineGame {
     setError(null);
   }, [teardown]);
 
-  return { status, youAre, snapshot, error, createRoom, joinRoom, send, leave };
+  return { status, youAre, snapshot, error, createRoom, joinRoom, quickMatch, send, leave };
 }

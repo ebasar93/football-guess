@@ -4,6 +4,8 @@ import { GameState } from '../logic/game';
 export type ClientMessage =
   | { type: 'create'; name: string }
   | { type: 'join'; code: string; name: string }
+  | { type: 'quickMatch'; name: string }
+  | { type: 'cancelQuickMatch' }
   | { type: 'pickTeamA'; team: string }
   | { type: 'pickTeamB'; team: string }
   | { type: 'buzz' }
@@ -26,6 +28,7 @@ export interface RoomSnapshot {
 
 /** Messages the game server sends to the app. */
 export type ServerMessage =
+  | { type: 'searching' } // in the quick-match queue, waiting for an opponent
   | { type: 'joined'; youAre: 0 | 1; snapshot: RoomSnapshot }
   | { type: 'state'; snapshot: RoomSnapshot }
   | { type: 'opponentLeft' }

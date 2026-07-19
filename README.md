@@ -29,8 +29,11 @@ in the device language).
 
 ## Online multiplayer
 
-- One player taps **Play Online → Create a Room** and gets a 4-letter room
-  code; the other joins with the code. The match starts automatically.
+- **Quick Match**: tap **Play Online → Quick Match** to be paired with the
+  next player searching for a public game, whoever they are.
+- **Play with a friend**: one player taps **Create a Room** and gets a
+  4-letter room code; the other joins with the code. The match starts
+  automatically.
 - The server is authoritative: it arbitrates who buzzed first, validates
   answers, and keeps both phones in sync. Skipping a round and rematches
   need both players to agree.

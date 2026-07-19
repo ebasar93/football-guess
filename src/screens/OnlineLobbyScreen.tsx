@@ -16,13 +16,31 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
 
   const playerName = name.trim() || 'Player';
-  const busy = online.status === 'connecting' || online.status === 'waiting';
+  const busy =
+    online.status === 'connecting' ||
+    online.status === 'waiting' ||
+    online.status === 'searching';
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Play Online</Text>
 
-      {online.status === 'waiting' && online.snapshot ? (
+      {online.status === 'searching' ? (
+        <View style={styles.waitBox}>
+          <Text style={styles.searchIcon}>🔎</Text>
+          <Text style={styles.waitText}>
+            Looking for an opponent…{'\n'}You'll be matched with the next player who
+            searches.
+          </Text>
+          <BigButton
+            label="Cancel search"
+            color={colors.card}
+            textColor={colors.textDim}
+            small
+            onPress={() => online.leave()}
+          />
+        </View>
+      ) : online.status === 'waiting' && online.snapshot ? (
         <View style={styles.waitBox}>
           <Text style={styles.waitLabel}>Room code</Text>
           <Text style={styles.code}>{online.snapshot.code}</Text>
@@ -43,30 +61,45 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
           />
 
           <BigButton
-            label={online.status === 'connecting' ? 'Connecting…' : 'Create a Room'}
-            onPress={() => !busy && online.createRoom(serverUrl, playerName)}
+            label={
+              online.status === 'connecting' ? 'Connecting…' : 'Quick Match — random opponent'
+            }
+            onPress={() => !busy && online.quickMatch(serverUrl, playerName)}
           />
 
           <View style={styles.divider}>
-            <Text style={styles.dividerText}>— or join a friend's room —</Text>
+            <Text style={styles.dividerText}>— or play with a friend —</Text>
           </View>
 
-          <TextInput
-            style={[styles.input, styles.codeInput]}
-            placeholder="ROOM CODE"
-            placeholderTextColor={colors.textDim}
-            value={code}
-            onChangeText={(t) => setCode(t.toUpperCase())}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={4}
-          />
           <BigButton
-            label="Join Room"
+            label="Create a Room"
             color={colors.card}
             textColor={colors.text}
-            onPress={() => !busy && code.trim() && online.joinRoom(serverUrl, code, playerName)}
+            onPress={() => !busy && online.createRoom(serverUrl, playerName)}
           />
+
+          <View style={styles.joinRow}>
+            <TextInput
+              style={[styles.input, styles.codeInput]}
+              placeholder="CODE"
+              placeholderTextColor={colors.textDim}
+              value={code}
+              onChangeText={(t) => setCode(t.toUpperCase())}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={4}
+            />
+            <View style={styles.joinButton}>
+              <BigButton
+                label="Join Room"
+                color={colors.card}
+                textColor={colors.text}
+                onPress={() =>
+                  !busy && code.trim() && online.joinRoom(serverUrl, code, playerName)
+                }
+              />
+            </View>
+          </View>
 
           <Text style={styles.serverLabel}>Game server</Text>
           <TextInput
@@ -80,6 +113,9 @@ export default function OnlineLobbyScreen({ online, onBack }: Props) {
       )}
 
       {online.error && <Text style={styles.error}>{online.error}</Text>}
+      {online.status === 'opponentLeft' && !online.snapshot?.state && (
+        <Text style={styles.error}>Connection to the server was lost.</Text>
+      )}
 
       <View style={styles.spacer} />
       <BigButton
@@ -115,12 +151,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   codeInput: {
+    flex: 1,
     textAlign: 'center',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: 8,
+    letterSpacing: 6,
   },
+  joinRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+  joinButton: { flex: 1, justifyContent: 'center' },
   divider: { alignItems: 'center', marginVertical: 4 },
+  searchIcon: { fontSize: 40 },
   dividerText: { color: colors.textDim, fontSize: 13 },
   waitBox: {
     backgroundColor: colors.pitchLight,

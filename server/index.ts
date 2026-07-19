@@ -14,10 +14,13 @@ interface Session {
 
 type LiveSocket = WebSocket & { isAlive?: boolean };
 
+const sessions = new Map<WebSocket, Session>();
+
 const wss = new WebSocketServer({ port: PORT });
 
 wss.on('connection', (ws: LiveSocket) => {
   const session: Session = { room: null, idx: 0 };
+  sessions.set(ws, session);
   ws.isAlive = true;
   ws.on('pong', () => {
     ws.isAlive = true;
@@ -49,12 +52,33 @@ wss.on('connection', (ws: LiveSocket) => {
       session.idx = 1;
       return;
     }
+    if (msg.type === 'quickMatch') {
+      if (session.room) return;
+      const room = manager.quickMatch(ws, sanitizeName(msg.name));
+      if (room) {
+        // The queued opponent's session lives on another connection.
+        const waiterSession = sessions.get(room.sockets[0] as WebSocket);
+        if (waiterSession) {
+          waiterSession.room = room;
+          waiterSession.idx = 0;
+        }
+        session.room = room;
+        session.idx = 1;
+      }
+      return;
+    }
+    if (msg.type === 'cancelQuickMatch') {
+      manager.cancelQuickMatch(ws);
+      return;
+    }
     if (session.room) session.room.handle(session.idx, msg);
   });
 
   ws.on('close', () => {
+    manager.cancelQuickMatch(ws);
     if (session.room) manager.leave(session.room, session.idx);
     session.room = null;
+    sessions.delete(ws);
   });
 });
 

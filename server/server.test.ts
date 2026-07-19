@@ -33,9 +33,12 @@ class Client {
   }
 
   open(): Promise<void> {
+    // The 'open' event may have fired before this is called (e.g. a client
+    // constructed earlier in the test) -- check readyState first.
+    if (this.ws.readyState === WebSocket.OPEN) return Promise.resolve();
     return new Promise((res, rej) => {
-      this.ws.on('open', res);
-      this.ws.on('error', rej);
+      this.ws.once('open', () => res());
+      this.ws.once('error', rej);
     });
   }
 
@@ -216,6 +219,70 @@ async function main() {
     const left = await alice.next();
     assert(left.type === 'opponentLeft', 'opponent is told about a disconnect');
     alice.ws.close();
+
+    // ── Public matchmaking ──────────────────────────────────────
+    // First searcher waits in the queue.
+    const carol = new Client();
+    await carol.open();
+    carol.send({ type: 'quickMatch', name: 'Carol' });
+    const searching = await carol.next();
+    assert(searching.type === 'searching', 'first quick-matcher waits in queue');
+
+    // Cancelling removes you from the queue: Dave should not match Carol.
+    carol.send({ type: 'cancelQuickMatch' });
+    const dave = new Client();
+    await dave.open();
+    dave.send({ type: 'quickMatch', name: 'Dave' });
+    const daveSearch = await dave.next();
+    assert(daveSearch.type === 'searching', 'queue is empty after a cancel');
+
+    // A disconnected searcher must not be matched either.
+    dave.ws.close();
+    await new Promise((r) => setTimeout(r, 200)); // let the close reach the server
+
+    // Two fresh searchers get paired into a running game.
+    const erin = new Client();
+    const frank = new Client();
+    await erin.open();
+    erin.send({ type: 'quickMatch', name: 'Erin' });
+    const erinSearch = await erin.next();
+    assert(erinSearch.type === 'searching', 'dead sockets are cleaned from the queue');
+    await frank.open();
+    frank.send({ type: 'quickMatch', name: 'Frank' });
+
+    const erinJoin = await erin.next();
+    const frankJoin = await frank.next();
+    assert(
+      erinJoin.type === 'joined' && erinJoin.youAre === 0,
+      'waiting searcher becomes player 1',
+    );
+    assert(
+      frankJoin.type === 'joined' && frankJoin.youAre === 1,
+      'second searcher becomes player 2',
+    );
+    let qSnap = frankJoin.type === 'joined' ? frankJoin.snapshot : null;
+    assert(
+      qSnap?.names[0] === 'Erin' && qSnap?.names[1] === 'Frank',
+      'matched players see both names',
+    );
+    assert(qSnap?.state?.phase === 'pickTeamA', 'quick match starts immediately');
+
+    // The matched room is fully playable (both sessions wired correctly).
+    erin.send({ type: 'pickTeamA', team: 'Galatasaray' });
+    qSnap = await frank.until((s) => s.state?.phase === 'pickTeamB');
+    assert(qSnap.state!.teamA === 'Galatasaray', 'quick-match room accepts moves');
+    frank.send({ type: 'pickTeamB', team: 'Inter' });
+    await erin.until((s) => s.state?.phase === 'buzzer');
+    erin.send({ type: 'buzz' });
+    await erin.until((s) => s.state?.phase === 'answer');
+    erin.send({ type: 'guess', text: 'sneijder' });
+    qSnap = await frank.until((s) => s.state?.phase === 'roundResult');
+    assert(qSnap.state!.scores[0] === 1, 'both quick-match sessions are playable');
+
+    erin.ws.close();
+    const frankLeft = await frank.next();
+    assert(frankLeft.type === 'opponentLeft', 'quick-match rooms tear down on disconnect');
+    frank.ws.close();
   } finally {
     server.kill();
   }

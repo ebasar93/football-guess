@@ -145,6 +145,8 @@ export class Room {
 
 export class RoomManager {
   rooms = new Map<string, Room>();
+  /** Players waiting for a public quick match, oldest first. */
+  queue: { socket: PlayerSocket; name: string }[] = [];
 
   create(socket: PlayerSocket, name: string): Room {
     const room = new Room(makeCode((c) => this.rooms.has(c)));
@@ -164,6 +166,35 @@ export class RoomManager {
     room.sendTo(1, { type: 'joined', youAre: 1, snapshot: room.snapshot() });
     room.broadcast();
     return room;
+  }
+
+  /**
+   * Public matchmaking: pair with the oldest waiting player, or wait in
+   * the queue. Returns the room when a match was made (the caller is
+   * player 1, the waiting player is player 0), null while waiting.
+   */
+  quickMatch(socket: PlayerSocket, name: string): Room | null {
+    this.cancelQuickMatch(socket); // no duplicate queue entries
+    const waiting = this.queue.shift();
+    if (!waiting) {
+      this.queue.push({ socket, name });
+      socket.send(JSON.stringify({ type: 'searching' } satisfies ServerMessage));
+      return null;
+    }
+    const room = new Room(makeCode((c) => this.rooms.has(c)));
+    room.sockets[0] = waiting.socket;
+    room.names[0] = waiting.name;
+    room.sockets[1] = socket;
+    room.names[1] = name;
+    room.game = newGame(room.names);
+    this.rooms.set(room.code, room);
+    room.sendTo(0, { type: 'joined', youAre: 0, snapshot: room.snapshot() });
+    room.sendTo(1, { type: 'joined', youAre: 1, snapshot: room.snapshot() });
+    return room;
+  }
+
+  cancelQuickMatch(socket: PlayerSocket) {
+    this.queue = this.queue.filter((e) => e.socket !== socket);
   }
 
   /** A player's connection dropped: tell the opponent and close the room. */
