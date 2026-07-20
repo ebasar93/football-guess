@@ -16,7 +16,7 @@ import PulseView from '../components/PulseView';
 import ScoreBoard from '../components/ScoreBoard';
 import TeamPicker from '../components/TeamPicker';
 import TeamsBanner from '../components/TeamsBanner';
-import { TEAMS } from '../data/players';
+import { LEAGUES } from '../data/leagues';
 import { teamsWithCommonPlayer } from '../logic/game';
 import { OnlineGame } from '../online/useOnlineGame';
 import { Rating } from '../rating/useRating';
@@ -100,7 +100,7 @@ export default function OnlineGameScreen({ online, rating, onLeave }: Props) {
           <TeamPicker
             title="Your turn — pick the first team"
             subtitle={`${oppName} will pick the second team.`}
-            teams={TEAMS}
+            teams={LEAGUES[g.league].teams}
             accent={myColor}
             onPick={(t) => online.send({ type: 'pickTeamA', team: t })}
           />
@@ -114,7 +114,7 @@ export default function OnlineGameScreen({ online, rating, onLeave }: Props) {
           <TeamPicker
             title="Your turn — pick the second team"
             subtitle={`First team: ${g.teamA}. Only teams with at least one common player are listed.`}
-            teams={teamsWithCommonPlayer(g.teamA)}
+            teams={teamsWithCommonPlayer(g.teamA, g.league)}
             accent={myColor}
             onPick={(t) => online.send({ type: 'pickTeamB', team: t })}
           />

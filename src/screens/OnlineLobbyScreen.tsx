@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import BigButton from '../components/BigButton';
+import { League, LEAGUES } from '../data/leagues';
 import { OnlineGame } from '../online/useOnlineGame';
 import { DEFAULT_SERVER_URL } from '../config';
 import { colors } from '../theme';
 
 interface Props {
   online: OnlineGame;
+  league: League;
   rating: number;
   onBack: () => void;
 }
 
-export default function OnlineLobbyScreen({ online, rating, onBack }: Props) {
+export default function OnlineLobbyScreen({ online, league, rating, onBack }: Props) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
@@ -24,8 +26,12 @@ export default function OnlineLobbyScreen({ online, rating, onBack }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Play Online</Text>
-      <Text style={styles.ratingChip}>⭐ Your rating: {rating}</Text>
+      <Text style={styles.title}>
+        Play Online {LEAGUES[league].emoji}
+      </Text>
+      <Text style={styles.ratingChip}>
+        ⭐ Your {LEAGUES[league].label} rating: {rating}
+      </Text>
 
       {online.status === 'searching' ? (
         <View style={styles.waitBox}>
@@ -71,7 +77,7 @@ export default function OnlineLobbyScreen({ online, rating, onBack }: Props) {
             label={
               online.status === 'connecting' ? 'Connecting…' : 'Quick Match — find an opponent'
             }
-            onPress={() => !busy && online.quickMatch(serverUrl, playerName, rating)}
+            onPress={() => !busy && online.quickMatch(serverUrl, playerName, rating, league)}
           />
 
           <View style={styles.divider}>
@@ -82,7 +88,7 @@ export default function OnlineLobbyScreen({ online, rating, onBack }: Props) {
             label="Create a Room"
             color={colors.card}
             textColor={colors.text}
-            onPress={() => !busy && online.createRoom(serverUrl, playerName, rating)}
+            onPress={() => !busy && online.createRoom(serverUrl, playerName, rating, league)}
           />
 
           <View style={styles.joinRow}>

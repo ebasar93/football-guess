@@ -10,7 +10,7 @@ import {
   submitGuess,
   teamsWithCommonPlayer,
 } from '../src/logic/game';
-import { TEAMS } from '../src/data/players';
+import { DEFAULT_LEAGUE, League, LEAGUES } from '../src/data/leagues';
 import {
   ClientMessage,
   DEFAULT_RATING,
@@ -52,6 +52,7 @@ function other(i: 0 | 1): 0 | 1 {
 
 export class Room {
   code: string;
+  league: League = DEFAULT_LEAGUE;
   names: [string, string] = ['', ''];
   ratings: [number, number] = [DEFAULT_RATING, DEFAULT_RATING];
   sockets: [PlayerSocket | null, PlayerSocket | null] = [null, null];
@@ -67,6 +68,7 @@ export class Room {
   snapshot(): RoomSnapshot {
     return {
       code: this.code,
+      league: this.league,
       matchId: `${this.code}#${this.gameNo}`,
       names: this.names,
       ratings: this.ratings,
@@ -95,7 +97,10 @@ export class Room {
       case 'pickTeamA': {
         if (!g || g.phase !== 'pickTeamA') return fail('Not picking a team now.');
         if (g.chooser !== i) return fail('Not your turn to pick.');
-        if (!TEAMS.includes(msg.team) || teamsWithCommonPlayer(msg.team).length === 0) {
+        if (
+          !LEAGUES[this.league].teams.includes(msg.team) ||
+          teamsWithCommonPlayer(msg.team, this.league).length === 0
+        ) {
           return fail('Unknown team.');
         }
         this.game = pickTeamA(g, msg.team);
@@ -106,8 +111,8 @@ export class Room {
         if (other(g.chooser) !== i) return fail('Not your turn to pick.');
         if (
           msg.team === g.teamA ||
-          !TEAMS.includes(msg.team) ||
-          commonPlayers(g.teamA, msg.team).length === 0
+          !LEAGUES[this.league].teams.includes(msg.team) ||
+          commonPlayers(g.teamA, msg.team, this.league).length === 0
         ) {
           return fail('Pick a team that shares a player with the first team.');
         }
@@ -150,7 +155,7 @@ export class Room {
         if (!g || g.phase !== 'gameOver') return fail('The match is still on.');
         this.rematchVotes[i] = true;
         if (this.rematchVotes[0] && this.rematchVotes[1]) {
-          this.game = newGame(this.names);
+          this.game = newGame(this.names, this.league);
           this.gameNo += 1;
           this.rematchVotes = [false, false];
           this.passed = [false, false];
@@ -168,6 +173,7 @@ interface QueueEntry {
   socket: PlayerSocket;
   name: string;
   rating: number;
+  league: League;
   since: number;
 }
 
@@ -178,8 +184,9 @@ export class RoomManager {
   /** Total connected clients; wired up by the server entry point. */
   onlineCount: () => number = () => this.queue.length;
 
-  create(socket: PlayerSocket, name: string, rating: number): Room {
+  create(socket: PlayerSocket, name: string, rating: number, league: League): Room {
     const room = new Room(makeCode((c) => this.rooms.has(c)));
+    room.league = league;
     room.sockets[0] = socket;
     room.names[0] = name;
     room.ratings[0] = rating;
@@ -194,7 +201,7 @@ export class RoomManager {
     room.sockets[1] = socket;
     room.names[1] = name;
     room.ratings[1] = rating;
-    room.game = newGame(room.names);
+    room.game = newGame(room.names, room.league);
     room.sendTo(1, { type: 'joined', youAre: 1, snapshot: room.snapshot() });
     room.broadcast();
     return room;
@@ -202,13 +209,14 @@ export class RoomManager {
 
   private pairUp(a: QueueEntry, b: QueueEntry): Room {
     const room = new Room(makeCode((c) => this.rooms.has(c)));
+    room.league = a.league;
     room.sockets[0] = a.socket;
     room.names[0] = a.name;
     room.ratings[0] = a.rating;
     room.sockets[1] = b.socket;
     room.names[1] = b.name;
     room.ratings[1] = b.rating;
-    room.game = newGame(room.names);
+    room.game = newGame(room.names, room.league);
     this.rooms.set(room.code, room);
     room.sendTo(0, { type: 'joined', youAre: 0, snapshot: room.snapshot() });
     room.sendTo(1, { type: 'joined', youAre: 1, snapshot: room.snapshot() });
@@ -230,20 +238,21 @@ export class RoomManager {
    * queue. Returns the room when a match was made (the caller is player
    * 1, the waiting player is player 0), null while waiting.
    */
-  quickMatch(socket: PlayerSocket, name: string, rating: number): Room | null {
+  quickMatch(socket: PlayerSocket, name: string, rating: number, league: League): Room | null {
     this.cancelQuickMatch(socket); // no duplicate queue entries
     const now = Date.now();
     let best: QueueEntry | null = null;
     for (const e of this.queue) {
+      if (e.league !== league) continue;
       const gap = Math.abs(e.rating - rating);
       if (gap > pairTolerance(now - e.since)) continue;
       if (!best || gap < Math.abs(best.rating - rating)) best = e;
     }
     if (best) {
       this.queue = this.queue.filter((e) => e !== best);
-      return this.pairUp(best, { socket, name, rating, since: now });
+      return this.pairUp(best, { socket, name, rating, league, since: now });
     }
-    const entry: QueueEntry = { socket, name, rating, since: now };
+    const entry: QueueEntry = { socket, name, rating, league, since: now };
     this.queue.push(entry);
     this.sendSearching(entry);
     return null;
@@ -264,6 +273,7 @@ export class RoomManager {
         for (let j = i + 1; j < this.queue.length; j++) {
           const a = this.queue[i];
           const b = this.queue[j];
+          if (a.league !== b.league) continue;
           const waited = Math.max(now - a.since, now - b.since);
           if (Math.abs(a.rating - b.rating) <= pairTolerance(waited)) {
             this.queue = this.queue.filter((e) => e !== a && e !== b);

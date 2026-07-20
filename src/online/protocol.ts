@@ -1,10 +1,11 @@
+import { League } from '../data/leagues';
 import { GameState } from '../logic/game';
 
 /** Messages the app sends to the game server. */
 export type ClientMessage =
-  | { type: 'create'; name: string; rating?: number }
+  | { type: 'create'; name: string; rating?: number; league?: League }
   | { type: 'join'; code: string; name: string; rating?: number }
-  | { type: 'quickMatch'; name: string; rating?: number }
+  | { type: 'quickMatch'; name: string; rating?: number; league?: League }
   | { type: 'cancelQuickMatch' }
   | { type: 'pickTeamA'; team: string }
   | { type: 'pickTeamB'; team: string }
@@ -19,6 +20,8 @@ export const DEFAULT_RATING = 1000;
 
 export interface RoomSnapshot {
   code: string;
+  /** Which sport this room plays (set by whoever created it). */
+  league: League;
   /** Unique id for the current game in this room (changes on rematch). */
   matchId: string;
   names: [string, string];

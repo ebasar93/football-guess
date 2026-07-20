@@ -15,7 +15,7 @@ import PulseView from '../components/PulseView';
 import ScoreBoard from '../components/ScoreBoard';
 import TeamPicker from '../components/TeamPicker';
 import TeamsBanner from '../components/TeamsBanner';
-import { TEAMS } from '../data/players';
+import { LEAGUES } from '../data/leagues';
 import {
   buzz,
   GameState,
@@ -56,7 +56,7 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
         <TeamPicker
           title={`${chooserName}, pick the first team`}
           subtitle="The other player will pick the second team."
-          teams={TEAMS}
+          teams={LEAGUES[game.league].teams}
           accent={chooserColor}
           onPick={(t) => setGame(pickTeamA(game, t))}
         />
@@ -66,7 +66,7 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
         <TeamPicker
           title={`${otherName}, pick the second team`}
           subtitle={`First team: ${game.teamA}. Only teams with at least one common player are listed.`}
-          teams={teamsWithCommonPlayer(game.teamA)}
+          teams={teamsWithCommonPlayer(game.teamA, game.league)}
           accent={otherColor}
           onPick={(t) => setGame(pickTeamB(game, t))}
         />

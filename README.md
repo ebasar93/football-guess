@@ -1,7 +1,9 @@
-# ⚽ Ortak Oyuncu — Football Guess
+# ⚽🏀 Ortak Oyuncu — Football & NBA Guess
 
-A multiplayer football guessing game for iOS and Android, built with
-[Expo](https://expo.dev) / React Native.
+A multiplayer "common player" guessing game for iOS and Android, built
+with [Expo](https://expo.dev) / React Native. Two sports are included —
+pick ⚽ Football or 🏀 NBA on the home screen; each has its own dataset,
+online matchmaking queue, and rating.
 
 ## How the game works
 
@@ -18,10 +20,12 @@ on one device:
    valid answers are revealed.
 5. **First to 3 points wins the match.** 🏆
 
-Answers are checked against a built-in dataset of 200+ well-known players
-and their club histories (`src/data/players.ts`). Matching is forgiving:
-surnames are accepted and accents/Turkish characters are ignored
-(`sneijder`, `Hakan Sukur`, `ibrahimovic` all work).
+Answers are checked against built-in datasets: 200+ footballers with
+their club histories (`src/data/players.ts`) and 130+ NBA players with
+their franchises (`src/data/nba.ts` — current franchise names, plus the
+Seattle SuperSonics era as its own team). Matching is forgiving:
+surnames, distinctive first names, and accent-free spellings all work
+(`sneijder`, `lebron`, `Hakan Sukur`).
 
 Answers can be **spoken instead of typed**: tap the 🎤 button on the answer
 box and say the player's name (uses the device's native speech recognition
@@ -30,8 +34,9 @@ in the device language).
 ## Online multiplayer
 
 - **Quick Match**: tap **Play Online → Quick Match** to be paired with
-  another searching player near your skill level. Every player has an
-  Elo-style rating (starts at 1000, stored on the device) that goes up
+  another searching player near your skill level *in the same sport* —
+  football and NBA have separate queues. Every player has an Elo-style
+  rating per sport (starts at 1000, stored on the device) that goes up
   and down with online wins and losses; matchmaking prefers close
   ratings and widens its tolerance the longer you wait, so you always
   get a game. The searching screen shows how many players are online.
@@ -115,7 +120,9 @@ splash screen live in `assets/` and can be regenerated with
 ```
 App.tsx                    # screen switching (home / local game / online)
 src/
-  data/players.ts          # player ↔ clubs dataset (add players here!)
+  data/players.ts          # football player ↔ clubs dataset (add players here!)
+  data/nba.ts              # NBA player ↔ franchises dataset
+  data/leagues.ts          # league registry (football / nba)
   logic/game.ts            # pure game state machine + name matching
   logic/game.test.ts       # logic smoke tests
   online/protocol.ts       # client↔server message types (shared)

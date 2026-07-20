@@ -1,4 +1,5 @@
-import { PLAYERS, PlayerRecord, TEAMS } from '../data/players';
+import { League, LEAGUES } from '../data/leagues';
+import { PlayerRecord } from '../data/players';
 
 export const WINNING_SCORE = 3;
 
@@ -23,17 +24,21 @@ export function normalizeName(input: string): string {
     .trim();
 }
 
-/** Players in the dataset who played for both clubs. */
-export function commonPlayers(teamA: string, teamB: string): PlayerRecord[] {
-  return PLAYERS.filter(
+/** Players in the league's dataset who played for both clubs. */
+export function commonPlayers(
+  teamA: string,
+  teamB: string,
+  league: League = 'football',
+): PlayerRecord[] {
+  return LEAGUES[league].players.filter(
     (p) => p.clubs.includes(teamA) && p.clubs.includes(teamB),
   );
 }
 
 /** Teams that share at least one player with `team` (excluding itself). */
-export function teamsWithCommonPlayer(team: string): string[] {
-  return TEAMS.filter(
-    (other) => other !== team && commonPlayers(team, other).length > 0,
+export function teamsWithCommonPlayer(team: string, league: League = 'football'): string[] {
+  return LEAGUES[league].teams.filter(
+    (other) => other !== team && commonPlayers(team, other, league).length > 0,
   );
 }
 
@@ -55,8 +60,9 @@ export function checkGuess(
     const parts = full.split(' ');
     const surname = parts[parts.length - 1];
     if (parts.length > 1 && surname.length >= 3 && g === surname) return p;
-    // Allow "first-name surname" subsets like "ronaldo" for "cristiano ronaldo"
-    // only when the guessed word sequence appears in the full name.
+    // Any distinctive single token works too: "lebron", "cristiano", "hakan".
+    if (parts.length > 1 && g.length >= 4 && parts.includes(g)) return p;
+    // Multi-word subsets like "van persie" for "robin van persie".
     if (parts.length > 2 && full.includes(g) && g.length >= 4) return p;
   }
   return null;
@@ -73,6 +79,7 @@ export type Phase =
 
 export interface GameState {
   playerNames: [string, string];
+  league: League;
   scores: [number, number];
   round: number;
   /** Index of the player who picks the first team this round. */
@@ -91,9 +98,10 @@ export interface GameState {
   winner: 0 | 1 | null;
 }
 
-export function newGame(names: [string, string]): GameState {
+export function newGame(names: [string, string], league: League = 'football'): GameState {
   return {
     playerNames: names,
+    league,
     scores: [0, 0],
     round: 1,
     chooser: 0,
@@ -125,7 +133,7 @@ function other(player: 0 | 1): 0 | 1 {
 function withPoint(state: GameState, scorer: 0 | 1, matched: PlayerRecord): GameState {
   const scores: [number, number] = [...state.scores];
   scores[scorer] += 1;
-  const valid = commonPlayers(state.teamA!, state.teamB!).map((p) => p.name);
+  const valid = commonPlayers(state.teamA!, state.teamB!, state.league).map((p) => p.name);
   const won = scores[scorer] >= WINNING_SCORE;
   return {
     ...state,
@@ -139,7 +147,7 @@ function withPoint(state: GameState, scorer: 0 | 1, matched: PlayerRecord): Game
 /** Submit a guess for whoever is answering. */
 export function submitGuess(state: GameState, guess: string): GameState {
   if (state.answering === null || !state.teamA || !state.teamB) return state;
-  const candidates = commonPlayers(state.teamA, state.teamB);
+  const candidates = commonPlayers(state.teamA, state.teamB, state.league);
   const matched = checkGuess(guess, candidates);
   if (matched) return withPoint(state, state.answering, matched);
   if (state.phase === 'answer') {
@@ -163,7 +171,7 @@ export function submitGuess(state: GameState, guess: string): GameState {
 export function passRound(state: GameState): GameState {
   const valid =
     state.teamA && state.teamB
-      ? commonPlayers(state.teamA, state.teamB).map((p) => p.name)
+      ? commonPlayers(state.teamA, state.teamB, state.league).map((p) => p.name)
       : [];
   return {
     ...state,

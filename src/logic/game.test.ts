@@ -14,6 +14,7 @@ import {
   WINNING_SCORE,
 } from './game';
 import { PLAYERS, TEAMS } from '../data/players';
+import { NBA_PLAYERS, NBA_TEAMS } from '../data/nba';
 import { eloUpdate } from '../online/protocol';
 
 let failures = 0;
@@ -105,6 +106,35 @@ g = buzz(g, 1);
 g = submitGuess(g, 'Roberto Carlos');
 assert(g.scores[1] === WINNING_SCORE, 'third point reached');
 assert(g.phase === 'gameOver' && g.winner === 1, 'first to 3 wins the game');
+
+// ── NBA league ───────────────────────────────────────────────────
+assert(NBA_PLAYERS.length >= 120, `NBA dataset has ${NBA_PLAYERS.length} players (want 120+)`);
+assert(NBA_TEAMS.length >= 30, `NBA dataset has ${NBA_TEAMS.length} teams (want 30+)`);
+const nbaNames = new Set(NBA_PLAYERS.map((p) => p.name));
+assert(nbaNames.size === NBA_PLAYERS.length, 'NBA player names are unique');
+for (const p of NBA_PLAYERS) {
+  assert(new Set(p.clubs).size === p.clubs.length, `${p.name} has duplicate teams`);
+}
+for (const t of NBA_TEAMS) {
+  assert(teamsWithCommonPlayer(t, 'nba').length > 0, `NBA team "${t}" has no playable partner`);
+}
+// League separation: football helpers never leak NBA teams and vice versa.
+assert(commonPlayers('Lakers', 'Heat').length === 0, 'football league ignores NBA teams');
+
+const lakersHeat = commonPlayers('Lakers', 'Heat', 'nba');
+assert(lakersHeat.some((p) => p.name === 'LeBron James'), 'LeBron links Lakers and Heat');
+assert(lakersHeat.some((p) => p.name === "Shaquille O'Neal"), 'Shaq links Lakers and Heat');
+assert(checkGuess('lebron', lakersHeat)?.name === 'LeBron James', 'first-name token matches');
+assert(checkGuess('curry', lakersHeat) === null, 'wrong NBA player rejected');
+
+// A short NBA match reaches game over like football does.
+let nba = newGame(['A', 'B'], 'nba');
+assert(nba.league === 'nba', 'game state carries the league');
+nba = pickTeamA(nba, 'Lakers');
+nba = pickTeamB(nba, 'Heat');
+nba = buzz(nba, 0);
+nba = submitGuess(nba, 'Gary Payton');
+assert(nba.scores[0] === 1, 'NBA guesses validate against the NBA dataset');
 
 // ── Elo rating math ──────────────────────────────────────────────
 assert(eloUpdate(1000, 1000, true) === 1016, 'even-match win gains 16');

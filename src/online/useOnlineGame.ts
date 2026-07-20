@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { League } from '../data/leagues';
 import { ClientMessage, RoomSnapshot, ServerMessage } from './protocol';
 
 export type ConnectionStatus =
@@ -17,9 +18,9 @@ export interface OnlineGame {
   /** Players connected to the server, reported while searching. */
   onlineCount: number | null;
   error: string | null;
-  createRoom: (serverUrl: string, name: string, rating: number) => void;
+  createRoom: (serverUrl: string, name: string, rating: number, league: League) => void;
   joinRoom: (serverUrl: string, code: string, name: string, rating: number) => void;
-  quickMatch: (serverUrl: string, name: string, rating: number) => void;
+  quickMatch: (serverUrl: string, name: string, rating: number, league: League) => void;
   send: (msg: ClientMessage) => void;
   leave: () => void;
 }
@@ -109,8 +110,8 @@ export function useOnlineGame(): OnlineGame {
   );
 
   const createRoom = useCallback(
-    (serverUrl: string, name: string, rating: number) =>
-      connect(serverUrl, { type: 'create', name, rating }),
+    (serverUrl: string, name: string, rating: number, league: League) =>
+      connect(serverUrl, { type: 'create', name, rating, league }),
     [connect],
   );
 
@@ -121,8 +122,8 @@ export function useOnlineGame(): OnlineGame {
   );
 
   const quickMatch = useCallback(
-    (serverUrl: string, name: string, rating: number) =>
-      connect(serverUrl, { type: 'quickMatch', name, rating }),
+    (serverUrl: string, name: string, rating: number, league: League) =>
+      connect(serverUrl, { type: 'quickMatch', name, rating, league }),
     [connect],
   );
 

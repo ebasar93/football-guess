@@ -1,6 +1,7 @@
 // Football Guess online game server.
 //   cd server && npm install && npm start   (listens on PORT, default 8080)
 import { WebSocket, WebSocketServer } from 'ws';
+import { sanitizeLeague } from '../src/data/leagues';
 import { ClientMessage } from '../src/online/protocol';
 import { sanitizeName, sanitizeRating } from './names';
 import { Room, RoomManager } from './rooms';
@@ -39,7 +40,12 @@ wss.on('connection', (ws: LiveSocket) => {
 
     if (msg.type === 'create') {
       if (session.room) return;
-      session.room = manager.create(ws, sanitizeName(msg.name), sanitizeRating(msg.rating));
+      session.room = manager.create(
+        ws,
+        sanitizeName(msg.name),
+        sanitizeRating(msg.rating),
+        sanitizeLeague(msg.league),
+      );
       session.idx = 0;
       return;
     }
@@ -56,7 +62,12 @@ wss.on('connection', (ws: LiveSocket) => {
     }
     if (msg.type === 'quickMatch') {
       if (session.room) return;
-      const room = manager.quickMatch(ws, sanitizeName(msg.name), sanitizeRating(msg.rating));
+      const room = manager.quickMatch(
+        ws,
+        sanitizeName(msg.name),
+        sanitizeRating(msg.rating),
+        sanitizeLeague(msg.league),
+      );
       if (room) bindRoomSessions(room);
       return;
     }

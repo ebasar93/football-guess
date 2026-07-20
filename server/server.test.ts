@@ -352,6 +352,63 @@ async function main() {
     await pro.until((s) => s.state !== null);
     rookie.ws.close();
     pro.ws.close();
+
+    // ── NBA league ──────────────────────────────────────────────
+    // An NBA room only accepts NBA teams.
+    const hoopA = new Client();
+    await hoopA.open();
+    hoopA.send({ type: 'create', name: 'HoopA', league: 'nba' });
+    const hoopJoin = await hoopA.next();
+    assert(
+      hoopJoin.type === 'joined' && hoopJoin.snapshot.league === 'nba',
+      'room carries the NBA league',
+    );
+    const hoopCode = hoopJoin.type === 'joined' ? hoopJoin.snapshot.code : '';
+    const hoopB = new Client();
+    await hoopB.open();
+    hoopB.send({ type: 'join', code: hoopCode, name: 'HoopB' });
+    await hoopA.until((s) => s.state !== null);
+    hoopA.send({ type: 'pickTeamA', team: 'Galatasaray' }); // wrong sport
+    assert((await hoopA.untilError()).length > 0, 'football teams rejected in NBA rooms');
+    hoopA.send({ type: 'pickTeamA', team: 'Lakers' });
+    let hoopSnap = await hoopB.until((s) => s.state?.phase === 'pickTeamB');
+    assert(hoopSnap.state!.teamA === 'Lakers', 'NBA team accepted');
+    hoopB.send({ type: 'pickTeamB', team: 'Heat' });
+    await hoopA.until((s) => s.state?.phase === 'buzzer');
+    hoopA.send({ type: 'buzz' });
+    await hoopA.until((s) => s.state?.phase === 'answer');
+    hoopA.send({ type: 'guess', text: 'lebron' });
+    hoopSnap = await hoopB.until((s) => s.state?.phase === 'roundResult');
+    assert(hoopSnap.state!.scores[0] === 1, 'NBA answers validate in online rooms');
+    hoopA.ws.close();
+    await hoopB.next(); // opponentLeft
+    hoopB.ws.close();
+
+    // Quick-match queues are per league: same rating, different sport.
+    const footFan = new Client();
+    await footFan.open();
+    footFan.send({ type: 'quickMatch', name: 'FootFan', rating: 1000 });
+    await footFan.next(); // searching
+    const hoopFan = new Client();
+    await hoopFan.open();
+    hoopFan.send({ type: 'quickMatch', name: 'HoopFan', rating: 1000, league: 'nba' });
+    const hoopSearch = await hoopFan.next();
+    assert(
+      hoopSearch.type === 'searching',
+      'different leagues never pair despite equal ratings',
+    );
+    const hoopFan2 = new Client();
+    await hoopFan2.open();
+    hoopFan2.send({ type: 'quickMatch', name: 'HoopFan2', rating: 1000, league: 'nba' });
+    const hoopPair = await hoopFan2.until((s) => s.state !== null);
+    assert(hoopPair.league === 'nba', 'NBA searchers pair together');
+    assert(
+      hoopPair.names.includes('HoopFan') && !hoopPair.names.includes('FootFan'),
+      'the football searcher is left in the queue',
+    );
+    footFan.ws.close();
+    hoopFan.ws.close();
+    hoopFan2.ws.close();
   } finally {
     server.kill();
   }

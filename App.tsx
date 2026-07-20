@@ -7,6 +7,7 @@ import OnlineGameScreen from './src/screens/OnlineGameScreen';
 import OnlineLobbyScreen from './src/screens/OnlineLobbyScreen';
 import SetupScreen from './src/screens/SetupScreen';
 import WinnerScreen from './src/screens/WinnerScreen';
+import { DEFAULT_LEAGUE, League } from './src/data/leagues';
 import { GameState, newGame } from './src/logic/game';
 import { useOnlineGame } from './src/online/useOnlineGame';
 import { useRating } from './src/rating/useRating';
@@ -16,12 +17,13 @@ type Screen = 'home' | 'setup' | 'game' | 'onlineLobby';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
+  const [league, setLeague] = useState<League>(DEFAULT_LEAGUE);
   const [game, setGame] = useState<GameState | null>(null);
   const online = useOnlineGame();
-  const rating = useRating();
+  const rating = useRating(league);
 
   const startMatch = (names: [string, string]) => {
-    setGame(newGame(names));
+    setGame(newGame(names, league));
     setScreen('game');
   };
 
@@ -42,6 +44,8 @@ export default function App() {
       <View style={styles.content}>
         {screen === 'home' && (
           <HomeScreen
+            league={league}
+            onLeagueChange={setLeague}
             onPlayOnline={() => setScreen('onlineLobby')}
             onPlayLocal={() => setScreen('setup')}
           />
@@ -53,12 +57,17 @@ export default function App() {
         {screen === 'game' && game && game.phase === 'gameOver' && (
           <WinnerScreen
             game={game}
-            onRematch={() => setGame(newGame(game.playerNames))}
+            onRematch={() => setGame(newGame(game.playerNames, game.league))}
             onHome={goHome}
           />
         )}
         {screen === 'onlineLobby' && !inOnlineMatch && (
-          <OnlineLobbyScreen online={online} rating={rating.rating} onBack={goHome} />
+          <OnlineLobbyScreen
+            online={online}
+            league={league}
+            rating={rating.rating}
+            onBack={goHome}
+          />
         )}
         {inOnlineMatch && (
           <OnlineGameScreen online={online} rating={rating} onLeave={goHome} />
