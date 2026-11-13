@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, Vibration, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import BigButton from '../components/BigButton';
 import FadeIn from '../components/FadeIn';
 import PulseView from '../components/PulseView';
 import { GameState } from '../logic/game';
 import { colors } from '../theme';
+import { haptic } from '../utils/haptics';
 
 interface Props {
   game: GameState;
@@ -15,7 +16,7 @@ interface Props {
 export default function WinnerScreen({ game, onRematch, onHome }: Props) {
   const winner = game.winner ?? 0;
   useEffect(() => {
-    Vibration.vibrate([0, 60, 80, 60]);
+    haptic([0, 60, 80, 60]);
   }, []);
   return (
     <FadeIn style={styles.container}>

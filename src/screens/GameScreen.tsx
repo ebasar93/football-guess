@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  Vibration,
   View,
 } from 'react-native';
 import AnswerInput from '../components/AnswerInput';
@@ -28,6 +27,7 @@ import {
   teamsWithCommonPlayer,
 } from '../logic/game';
 import { colors } from '../theme';
+import { haptic } from '../utils/haptics';
 
 interface Props {
   game: GameState;
@@ -37,7 +37,7 @@ interface Props {
 
 export default function GameScreen({ game, setGame, onQuit }: Props) {
   useEffect(() => {
-    if (game.phase === 'buzzer') Vibration.vibrate(80);
+    if (game.phase === 'buzzer') haptic(80);
   }, [game.phase]);
 
   const chooserColor = game.chooser === 0 ? colors.p1 : colors.p2;
@@ -90,7 +90,7 @@ export default function GameScreen({ game, setGame, onQuit }: Props) {
                     },
                   ]}
                   onPress={() => {
-                    Vibration.vibrate(30);
+                    haptic(30);
                     setGame(buzz(game, i));
                   }}
                 >

@@ -97,6 +97,36 @@ npm start          # then scan the QR code with the Expo Go app
 - `npm test` — game-logic smoke tests
 - `npm run typecheck` — TypeScript check
 
+## Web version (deploy to Vercel)
+
+The app also runs in the browser via `react-native-web` — same codebase,
+no separate project. Try it locally first:
+
+```bash
+npm run web        # dev server with hot reload, opens in your browser
+```
+
+To deploy: push this repo to Vercel and import it as a new project —
+`vercel.json` already tells Vercel how to build it (`npm run build:web`,
+output in `dist/`), so no manual configuration is needed. Or deploy from
+the CLI:
+
+```bash
+npm install -g vercel
+npm run build:web  # static export into dist/
+vercel --prod       # or: vercel deploy --prebuilt --prod, if dist/ already built
+```
+
+Two things behave differently on web:
+- The 🎤 voice-answer button doesn't appear (no reliable cross-browser
+  speech API); typing still works everywhere.
+- Haptic buzzer feedback is skipped (no vibration API in browsers).
+
+For **online multiplayer** to work on the deployed site, the game server
+(see below) needs to be hosted somewhere public with HTTPS/`wss://` —
+pointing the web build at `ws://localhost:8080` only works when you're
+running the server on the same machine you're browsing from.
+
 ## Ship it to the App Store and Google Play
 
 The project is configured for [EAS Build](https://docs.expo.dev/build/introduction/)

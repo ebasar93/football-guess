@@ -6,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  Vibration,
   View,
 } from 'react-native';
 import AnswerInput from '../components/AnswerInput';
@@ -21,6 +20,7 @@ import { teamsWithCommonPlayer } from '../logic/game';
 import { OnlineGame } from '../online/useOnlineGame';
 import { Rating } from '../rating/useRating';
 import { colors } from '../theme';
+import { haptic } from '../utils/haptics';
 
 interface Props {
   online: OnlineGame;
@@ -47,8 +47,8 @@ export default function OnlineGameScreen({ online, rating, onLeave }: Props) {
 
   // A short buzz of the phone when the buzzer race opens or the match ends.
   useEffect(() => {
-    if (phase === 'buzzer') Vibration.vibrate(80);
-    if (phase === 'gameOver') Vibration.vibrate([0, 60, 80, 60]);
+    if (phase === 'buzzer') haptic(80);
+    if (phase === 'gameOver') haptic([0, 60, 80, 60]);
   }, [phase]);
 
   // Apply the Elo update exactly once per finished online match.
@@ -135,7 +135,7 @@ export default function OnlineGameScreen({ online, rating, onLeave }: Props) {
                 { backgroundColor: myColor, opacity: pressed ? 0.8 : 1 },
               ]}
               onPress={() => {
-                Vibration.vibrate(30);
+                haptic(30);
                 online.send({ type: 'buzz' });
               }}
             >
